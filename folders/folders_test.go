@@ -1,4 +1,4 @@
-package folders_test
+package folders
 
 import (
 	"testing"
@@ -7,57 +7,86 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// TestGetAllFolders tests the GetAllFolders function for various scenarios.
+func setupOrgID(orgID string) uuid.UUID {
+	return uuid.FromStringOrNil(orgID)
+}
+
 func TestGetAllFolders(t *testing.T) {
-	
-	t.Run("Invalid OrgID", func(t *testing.T) {
-		// Invalid UUID
-		testReq := &FetchFolderRequest{
-			OrgID: uuid.Nil,
-		}
+	validOrgID := setupOrgID("6591e16c-c257-4366-bf6d-650c68f71284")
+	nonexistentOrgID := uuid.Must(uuid.NewV4())
 
-		result, err := GetAllFolders(testReq)
-		assert.Error(t, err, "Expected error for invalid OrgID")
-		assert.Nil(t, result)
-	})
+	tests := []struct {
+		name      string
+		orgID     uuid.UUID
+		expectErr bool
+		errMsg    string
+		nonEmpty  bool
+	}{
+		{"Valid OrgID - Existing Folders", validOrgID, false, "", true},
+		{"Nonexistent OrgID", nonexistentOrgID, true, "no folders found", false},
+		{"Nil UUID", uuid.Nil, true, "Invalid ORG ID, cannot be nil", false},
+		{"Performance Check", validOrgID, false, "", true},
+	}
 
-	t.Run("Valid OrgID with Matching Folders", func(t *testing.T) {
-		testOrgID := uuid.Must(uuid.NewV4())
-		testReq := &FetchFolderRequest{
-			OrgID: testOrgID,
-		}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := &FetchFolderRequest{OrgID: tc.orgID}
+			res, err := GetAllFolders(req)
 
-		// Mock the GetSampleData function to return test data
-		GetSampleData = func() []*Folder {
-			return []*Folder{
-				{OrgId: testOrgID, Name: "Test Folder"},
+			if tc.expectErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errMsg)
+				assert.Nil(t, res)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, res)
+				if tc.nonEmpty {
+					assert.NotEmpty(t, res.Folders)
+					for _, folder := range res.Folders {
+						assert.NotEqual(t, uuid.Nil, folder.Id, "Folder ID must not be the nil UUID; it should be a properly set unique identifier.")
+						assert.Equal(t, tc.orgID, folder.OrgId, "The organization ID of the folder must match the organization ID provided in the test case.")
+						assert.NotEmpty(t, folder.Name, "The name of the folder must not be empty; it should contain valid text.")
+
+					}
+				}
 			}
-		}
+		})
+	}
+}
 
-		result, err := GetAllFolders(testReq)
-		assert.NoError(t, err)
-		assert.NotNil(t, result)
-		assert.Len(t, result.Folders, 1, "Expected one folder in result")
-	})
+func TestFetchAllFoldersByOrgID(t *testing.T) {
+	validOrgID := setupOrgID("6591e16c-c257-4366-bf6d-650c68f71284")
+	nonexistentOrgID := uuid.Must(uuid.NewV4())
 
-	t.Run("Valid OrgID with No Matching Folders", func(t *testing.T) {
-		testOrgID := uuid.Must(uuid.NewV4())
-		
-		// Different OrgID
-		otherOrgID := uuid.Must(uuid.NewV4())
-		testReq := &FetchFolderRequest{
-			OrgID: testOrgID,
-		}
+	tests := []struct {
+		name      string
+		orgID     uuid.UUID
+		expectErr bool
+		errMsg    string
+		nonEmpty  bool
+	}{
+		{"Valid OrgID - Existing Folders", validOrgID, false, "", true},
+		{"Nonexistent OrgID", nonexistentOrgID, true, "no folders found", false},
+		{"Nil UUID", uuid.Nil, true, "Invalid ORG ID", false},
+	}
 
-		// Mock the GetSampleData function to return test data with different OrgID
-		GetSampleData = func() []*Folder {
-			return []*Folder{
-				{OrgId: otherOrgID, Name: "Unrelated Folder"},
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			folders, err := FetchAllFoldersByOrgID(tc.orgID)
+
+			if tc.expectErr {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), tc.errMsg)
+				assert.Nil(t, folders)
+			} else {
+				assert.NoError(t, err)
+				assert.NotEmpty(t, folders)
+				for _, folder := range folders {
+					assert.NotEqual(t, uuid.Nil, folder.Id, "Folder ID must not be the nil UUID; it should be a properly set unique identifier.")
+					assert.Equal(t, tc.orgID, folder.OrgId, "The organization ID of the folder must match the organization ID provided in the test case.")
+					assert.NotEmpty(t, folder.Name, "The name of the folder must not be empty; it should contain valid text.")
+				}
 			}
-		}
-
-		result, err := GetAllFolders(testReq)
-		assert.Error(t, err, "Expected error for no matching folders")
-		assert.Nil(t, result)
-	})
+		})
+	}
 }
