@@ -1,8 +1,9 @@
 package folders
 
 import (
-	"github.com/gofrs/uuid"
-	"errors"
+	"fmt"
+    "github.com/gofrs/uuid"
+    "errors"
 )
 /**
  * Refactoring suggestions:
@@ -22,6 +23,10 @@ import (
 func GetAllFolders(req *FetchFolderRequest) (*FetchFolderResponse, error) {
     if req == nil {
         return nil, errors.New("request cannot be nil")
+    }
+
+    if req.OrgID == uuid.Nil {
+        return nil, fmt.Errorf("Invalid ORG ID, cannot be nil")
     }
 
     folders, err := FetchAllFoldersByOrgID(req.OrgID)
@@ -44,18 +49,21 @@ func GetAllFolders(req *FetchFolderRequest) (*FetchFolderResponse, error) {
  * @returns A slice of folder pointers that match the given organization ID, or an error if no folders match.
  */
 func FetchAllFoldersByOrgID(orgID uuid.UUID) ([]*Folder, error) {
-	allFolders := GetSampleData()
+	if orgID == uuid.Nil {
+        return nil, fmt.Errorf("Invalid ORG ID, cannot be nil")
+    }
 
-	var matchedFolders []*Folder
-	for _, folder := range allFolders {
-		if folder.OrgId == orgID {
-			matchedFolders = append(matchedFolders, folder)
-		}
-	}
+    allFolders := GetSampleData()
+    var matchedFolders []*Folder
+    for _, folder := range allFolders {
+        if folder.OrgId == orgID {
+            matchedFolders = append(matchedFolders, folder)
+        }
+    }
 
-	if len(matchedFolders) == 0 {
-		return nil, errors.New("no folders found for the specified orgID")
-	}
+    if len(matchedFolders) == 0 {
+        return nil, fmt.Errorf("no folders found for the specified orgID: %s", orgID)
+    }
 
-	return matchedFolders, nil
+    return matchedFolders, nil
 }
